@@ -44,20 +44,19 @@ def verify_jwt_token(token: str):
         try:
             user_id = int(user_id)
         except (ValueError, TypeError):
-            print(f"Invalid user_id format: {user_id}")  # Debug log
+            print(f"Invalid user_id format: {user_id}")  
             return None
         
         return {"user_id": user_id, "payload": payload}
         
     except jwt.JWTError as e:
-        print(f"JWT Error: {e}")  # Debug log
+        print(f"JWT Error: {e}")  
         return None
     
 def authenticate_user(db, username: str, password: str):
     """
     Authenticate user by username and password
     """
-    # Replace 'User' with your actual user model name
     user = db.query(User).filter(User.username == username).first()
     
     if not user:

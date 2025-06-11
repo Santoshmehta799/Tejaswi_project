@@ -3,10 +3,11 @@ from .database import Base
 from datetime import datetime
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Integer, String, Enum, ForeignKey, Date, DateTime, DECIMAL, \
-    CheckConstraint, Text, LargeBinary, UniqueConstraint
+    CheckConstraint, Text, LargeBinary, UniqueConstraint, JSON, Float, Boolean
 
 
 class UserRole(enum.Enum):
+    ADMIN_USER = "admin_user"
     STICKER_GUYS = "sticker_guys"
     DISPATCH_GUYS = "dispatch_guys"
 
@@ -20,7 +21,8 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     password = Column(String)
-    role = Column(Enum(UserRole))  
+    role = Column(String)
+
 
 
 class TradingName(enum.Enum):
@@ -36,8 +38,9 @@ class Quality(Base):
 class Colour(Base):
     __tablename__ = "colour"
 
-    id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100))
+    id = Column(Integer, primary_key=True, index=True)
+    is_white = Column(Boolean, nullable=False) 
 
 class ProductType(Base):
     __tablename__ = "product_type"
@@ -77,9 +80,46 @@ class StickerGenerator(Base):
     qr_code_data = Column(Text)  
     qr_code_image = Column(LargeBinary)  
     qr_code_filename = Column(String(255)) 
+    is_sold = Column(Boolean, default=False)
+    leminated = Column(Boolean, default=False)
+
+    colour = relationship("Colour")
+    product_type = relationship("ProductType")
+    storage_location = relationship("StorageLocation")
+    quality = relationship("Quality")
 
     __table_args__ = (
     CheckConstraint("trading_name IN ('bharat', 'green')", name="check_trading_name_valid"),
     CheckConstraint("shift IN ('8AM-8PM', '8PM-8AM')", name="check_shift_valid"), 
     UniqueConstraint('product_number', name='uq_product_number'),
-    )   
+    )  
+
+
+class ScannedProduct(Base):
+    __tablename__ = "scanned_products"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    product_number = Column(String, index=True)
+    product_type = Column(String)
+    quality = Column(String)
+    colour = Column(String)
+    net_weight = Column(String)
+    gross_weight = Column(DECIMAL(10, 2))
+    created_at = Column(DateTime, default=datetime.utcnow) 
+
+
+class DispatchManager(Base):
+    __tablename__ = "dispatch_managers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    select_client = Column(String, nullable=False)
+    vehicle_number = Column(String, nullable=False)
+    driver_contact = Column(String, nullable=False)
+    scanned_items = Column(JSON)
+    disptach_summary = Column(JSON)
+    total_items = Column(Integer, default=0)
+    total_weight = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    status = Column(String, default="pending")
