@@ -26,5 +26,4 @@ def read_root():
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 
-# admin_service = auth.AdminConfigService()
 
