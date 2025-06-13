@@ -73,20 +73,17 @@ class StickerGenerator(Base):
     gross_weight = Column(DECIMAL(10, 2))
     length = Column(DECIMAL(10, 2))
     width = Column(DECIMAL(10, 2))
-
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.id"))
-
     qr_code_data = Column(Text)  
     qr_code_image = Column(LargeBinary)  
     qr_code_filename = Column(String(255)) 
     is_sold = Column(Boolean, default=False)
-    leminated = Column(Boolean, default=False)
-
+    leminated = Column(Boolean, default=False)   # update that spelling
     colour = relationship("Colour")
+    quality = relationship("Quality")
     product_type = relationship("ProductType")
     storage_location = relationship("StorageLocation")
-    quality = relationship("Quality")
 
     __table_args__ = (
     CheckConstraint("trading_name IN ('bharat', 'green')", name="check_trading_name_valid"),
@@ -106,6 +103,9 @@ class ScannedProduct(Base):
     colour = Column(String)
     net_weight = Column(String)
     gross_weight = Column(DECIMAL(10, 2))
+    gsm = Column(String(10))
+    length = Column(DECIMAL(10, 2))
+    width = Column(DECIMAL(10, 2))
     created_at = Column(DateTime, default=datetime.utcnow) 
 
 
@@ -123,3 +123,8 @@ class DispatchManager(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     status = Column(String, default="pending")
+
+    # gross_weight = Column(DECIMAL(10, 2))
+    # gsm = Column(String(10))
+    # length = Column(DECIMAL(10, 2))
+    # width = Column(DECIMAL(10, 2))

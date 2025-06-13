@@ -14,16 +14,19 @@ from sqlalchemy import select
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import Session
+from collections import defaultdict
 from ..database import SessionLocal
+from sqlalchemy.orm import joinedload
 from fastapi import Response, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from ..models import Colour, DispatchManager, ProductType, Quality, ScannedProduct, StickerGenerator, StorageLocation, User
-from ..schemas import AdminConfigRequest, AdminConfigResponse, ConfigItemCreate, DeleteResponse, DispatchHistoryResponse, DispatchManagerCreate, DispatchManagerResponse, InventoryRecordResponse, LoginSchema, ProductDetailsResponse, ScannedItemSchema, \
-    StickerGeneratorCreate, StickerGeneratorResponse, StickerUpdateRequest, StickerUpdateResponse, UserCreate
+from ..schemas import AdminConfigRequest, AdminConfigResponse, ConfigItemCreate, DeleteResponse, DispatchHistoryResponse, \
+        DispatchManagerCreate, DispatchManagerResponse, InventoryRecordResponse, LoginSchema, ProductDetailsResponse, ScannedItemSchema, \
+        StickerGeneratorCreate, StickerGeneratorResponse, StickerResponse, StickerUpdateRequest, StickerUpdateResponse, UserCreate
 from ..utils import ACCESS_TOKEN_EXPIRE_MINUTES, authenticate_user, create_access_token, hash_password, verify_jwt_token,create_refresh_token, \
-    SECRET_KEY, ALGORITHM
+        SECRET_KEY, ALGORITHM
 
 
 router = APIRouter()
@@ -717,7 +720,11 @@ def get_all_inventory_records(db: Session = Depends(get_db),current_user = Depen
             select(
                 StickerGenerator.product_number.label('product_code'),
                 ProductType.name.label('type'),
-                StickerGenerator.net_weight.label('weight'),
+                StickerGenerator.net_weight.label('net_weight'),
+                StickerGenerator.gross_weight.label('gross_weight'),
+                StickerGenerator.width.label('width'),
+                StickerGenerator.length.label('length'),
+                StickerGenerator.gsm.label('gsm'),
                 Colour.name.label('color'),
                 Quality.name.label('quality'),
                 StickerGenerator.is_sold.label('is_sold'),
@@ -742,7 +749,11 @@ def get_all_inventory_records(db: Session = Depends(get_db),current_user = Depen
             inventory_records.append(InventoryRecordResponse(
                 product_code=record.product_code,
                 type=record.type.capitalize(),
-                weight=record.weight,
+                net_weight=record.net_weight,
+                gross_weight=record.gross_weight,
+                width=record.width,
+                length=record.length,
+                gsm=record.gsm,
                 color=record.color.capitalize(),
                 quality_id=record.quality_id,
                 colour_id=record.colour_id,
@@ -758,6 +769,35 @@ def get_all_inventory_records(db: Session = Depends(get_db),current_user = Depen
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching inventory records: {str(e)}")
 
+@router.get("/inventroy-data/{product_number}/qr-code", response_model=StickerResponse)
+def get_sticker_by_product_number(
+    product_number: str, 
+    db: Session = Depends(get_db),
+    # current_user = Depends(get_current_user)
+):
+    """
+    Get sticker data by product number
+    """
+    sticker = db.query(StickerGenerator).filter(
+        StickerGenerator.product_number == product_number
+    ).options(
+        # Eager load relationships to avoid N+1 queries
+        joinedload(StickerGenerator.colour),
+        joinedload(StickerGenerator.quality),
+        joinedload(StickerGenerator.product_type)
+    ).first()
+    
+    if not sticker:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Sticker with product number '{product_number}' not found"
+        )
+    if sticker.qr_code_image:
+        sticker.qr_code_base64 = base64.b64encode(sticker.qr_code_image).decode('utf-8')
+    else:
+        sticker.qr_code_base64 = None
+    
+    return sticker
 
 @router.get("/scan-qr-code/", response_model=List[ProductDetailsResponse])
 def get_sticker_by_product_number(
@@ -775,7 +815,10 @@ def get_sticker_by_product_number(
             Quality.name.label('quality'),
             Colour.name.label('colour'),
             StickerGenerator.net_weight,
-            # StickerGenerator.gross_weight
+            StickerGenerator.gross_weight,
+            StickerGenerator.length,
+            StickerGenerator.width,
+            StickerGenerator.gsm
         ).join(
             ProductType, StickerGenerator.product_type_id == ProductType.id
         ).join(
@@ -807,7 +850,10 @@ def get_sticker_by_product_number(
                 quality=result.quality.capitalize(),
                 colour=result.colour.capitalize(),
                 net_weight=str(result.net_weight),
-                # gross_weight=str(result.gross_weight)
+                gross_weight=result.gross_weight,
+                length=result.length,
+                width=result.width,
+                gsm=result.gsm,
             )
             db.add(scanned)
             db.commit()
@@ -824,7 +870,10 @@ def get_sticker_by_product_number(
                 quality=sp.quality,
                 colour=sp.colour,
                 net_weight=sp.net_weight,
-                # gross_weight=sp.gross_weight
+                gross_weight=sp.gross_weight,
+                length=sp.length,
+                width=sp.width,
+                gsm=sp.gsm
             ) for sp in scanned_products
         ]
 
@@ -919,335 +968,37 @@ def parse_scanned_item(item_string: str) -> ScannedItemSchema:
     """
     Parse scanned item string like: [A24MY001] - Premium - White - Roll - 45.6kg
     """
-    pattern = r'\[([^\]]+)\]\s*-\s*([^-]+)\s*-\s*([^-]+)\s*-\s*([^-]+)\s*-\s*([\d.]+)kg'
+    # pattern = r'\[([^\]]+)\]\s*-\s*([^-]+)\s*-\s*([^-]+)\s*-\s*([^-]+)\s*-\s*([\d.]+)kg'
+    pattern = (
+        r'\[([^\]]+)\]\s*-\s*'           # product_number
+        r'([^-]+)\s*-\s*'                # quality
+        r'([^-]+)\s*-\s*'                # colour
+        r'([^-]+)\s*-\s*'                # product_type
+        r'([\d.]+)kg\s*-\s*'             # weight
+        r'([\d.]+)gw\s*-\s*'             # gross_weight
+        r'([\d.]+)l\s*-\s*'              # length
+        r'([\d.]+)w\s*-\s*'              # width
+        r'(\d+)gsm'                      # gsm
+    )
     match = re.match(pattern, item_string.strip())
     
     if not match:
         raise ValueError(f"Invalid scanned item format: {item_string}")
     
-    product_number, quality, colour, product_type, weight = match.groups()
-    
+    # product_number, quality, colour, product_type, weight = match.groups()
+    product_number, quality, colour, product_type, weight, gross_weight, length, width, gsm = match.groups()
+
     return ScannedItemSchema(
         product_number=product_number.strip(),
         quality=quality.strip(),
         colour=colour.strip(),
         product_type=product_type.strip(),
-        weight=float(weight)
+        weight=float(weight),
+        gross_weight=float(gross_weight),
+        length=float(length),
+        width=float(width),
+        gsm=gsm.strip()
     )
-
-
-
-# @router.post("/dispatch-manager/", response_model=DispatchManagerResponse)
-# def create_dispatch(
-#     dispatch_data: DispatchManagerCreate,
-#     db: Session = Depends(get_db),
-#     current_user = Depends(get_current_user)
-# ):
-#     """
-#     Create a new dispatch manager entry
-#     """
-#     try:
-#         # Parse scanned items
-#         parsed_items = []
-#         for item_string in dispatch_data.scanned_items:
-#             parsed_item = parse_scanned_item(item_string)
-#             parsed_items.append(parsed_item)
-        
-#         # Calculate totals
-#         total_weight = sum(item.weight for item in parsed_items)
-#         total_items = len(parsed_items)
-        
-#         # Convert parsed items to dict for JSON storage
-#         scanned_items_dict = [item.dict() for item in parsed_items]
-        
-#         # Create database entry
-#         db_dispatch = DispatchManager(
-#             select_client=dispatch_data.select_client,
-#             vehicle_number=dispatch_data.vehicle_number,
-#             driver_contact=dispatch_data.driver_contact,
-#             scanned_items=scanned_items_dict,
-#             total_items=total_items,
-#             total_weight=total_weight
-#         )
-#         db.add(db_dispatch)
-#         db.commit()
-#         db.refresh(db_dispatch)
-
-#         db.query(ScannedProduct).filter_by(user_id=current_user.id).delete()
-#         db.commit()
-        
-#         # For now, simulate the response
-#         return DispatchManagerResponse(
-#             id=1,  # This would come from the database
-#             select_client=dispatch_data.select_client,
-#             vehicle_number=dispatch_data.vehicle_number,
-#             driver_contact=dispatch_data.driver_contact,
-#             scanned_items=parsed_items,
-#             total_items=total_items,
-#             total_weight=total_weight,
-#             created_at=datetime.utcnow(),
-#             updated_at=datetime.utcnow(),
-#             status="pending"
-#         )
-        
-#     except ValueError as e:
-#         raise HTTPException(status_code=400, detail=str(e))
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-    
-
-@router.get("/dispatch-manager/history", response_model=List[DispatchHistoryResponse])
-def get_dispatch_history(
-    start_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
-    end_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """
-    Get all dispatch history - simple version
-    """
-    try:
-        # Start with base query
-        query = db.query(DispatchManager)
-        
-        # Apply date filters if provided
-        if start_date:
-            # Convert date to datetime for comparison (start of day)
-            start_datetime = datetime.combine(start_date, datetime.min.time())
-            query = query.filter(DispatchManager.created_at >= start_datetime)
-        
-        if end_date:
-            # Convert date to datetime for comparison (end of day)
-            end_datetime = datetime.combine(end_date, datetime.max.time())
-            query = query.filter(DispatchManager.created_at <= end_datetime)
-        
-        # Order by created_at descending and execute query
-        dispatches = query.order_by(DispatchManager.created_at.desc()).all()
-        
-        return dispatches
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-    
-@router.get("/dispatch-managers/{dispatch_id}", response_model=DispatchManagerResponse)
-async def get_dispatch_manager(
-    dispatch_id: int,
-    db: Session = Depends(get_db)
-):
-    
-    # Query the database for the dispatch manager
-    dispatch_manager = db.query(DispatchManager).filter(
-        DispatchManager.id == dispatch_id
-    ).first()
-    
-    # Check if dispatch manager exists
-    if not dispatch_manager:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Dispatch manager with ID {dispatch_id} not found"
-        )
-    
-    return dispatch_manager
-
-@router.put("/sticker-generator/update/{product_number}", response_model=StickerUpdateResponse)
-def update_sticker(
-    product_number: str,
-    update_data: StickerUpdateRequest,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """
-    Update specific fields of a sticker by product number
-    """
-    try:
-        sticker = db.query(StickerGenerator).filter(
-            StickerGenerator.product_number == product_number
-        ).first()
-        
-        if not sticker:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Product with number '{product_number}' not found"
-            )
-        
-        # Check if sticker is already sold
-        if sticker.is_sold:
-            raise HTTPException(
-                status_code=400, 
-                detail="Cannot update sold product"
-            )
-        
-        # Validate foreign key references before updating
-        if update_data.product_type_id:
-            product_type = db.query(ProductType).filter(ProductType.id == update_data.product_type_id).first()
-            if not product_type:
-                raise HTTPException(status_code=404, detail=f"Product type with ID {update_data.product_type_id} not found")
-        
-        if update_data.colour_id:
-            colour = db.query(Colour).filter(Colour.id == update_data.colour_id).first()
-            if not colour:
-                raise HTTPException(status_code=404, detail=f"Colour with ID {update_data.colour_id} not found")
-        
-        if update_data.quality_id:
-            quality = db.query(Quality).filter(Quality.id == update_data.quality_id).first()
-            if not quality:
-                raise HTTPException(status_code=404, detail=f"Quality with ID {update_data.quality_id} not found")
-        
-        # Update only the provided fields
-        updated_fields = []
-        
-        if update_data.product_type_id is not None:
-            sticker.product_type_id = update_data.product_type_id
-            updated_fields.append("product_type_id")
-        
-        if update_data.colour_id is not None:
-            sticker.colour_id = update_data.colour_id
-            updated_fields.append("colour_id")
-        
-        if update_data.quality_id is not None:
-            sticker.quality_id = update_data.quality_id
-            updated_fields.append("quality_id")
-        
-        if update_data.net_weight is not None:
-            sticker.net_weight = update_data.net_weight
-            updated_fields.append("net_weight")
-
-        if update_data.is_sold is not None:
-            sticker.is_sold = update_data.is_sold
-            updated_fields.append("is_sold")
-        
-        # if update_data.leminated is not None:
-        #     sticker.is_sold = update_data.is_sold
-        #     updated_fields.append("is_sold")
-        
-        if not updated_fields:
-            raise HTTPException(
-                status_code=400, 
-                detail="No fields provided for update"
-            )
-        
-        # Commit the changes
-        db.commit()
-        db.refresh(sticker)
-        
-        # Prepare response
-        response_data = {
-            "id": sticker.id,
-            "product_number": sticker.product_number,
-            "product_type_id": sticker.product_type_id,
-            "colour_id": sticker.colour_id,
-            "quality_id": sticker.quality_id,
-            "net_weight": float(sticker.net_weight),
-            "is_sold": sticker.is_sold,
-            "message": f"Successfully updated fields: {', '.join(updated_fields)}"
-        }
-        
-        return StickerUpdateResponse(**response_data)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error updating sticker: {str(e)}")
-
-
-# @router.put("/sticker-generator/update/{product_number}", response_model=StickerUpdateResponse)
-# def update_sticker(
-#     product_number: str,
-#     update_data: StickerUpdateRequest,
-#     db: Session = Depends(get_db),
-#     # current_user = Depends(get_current_user)
-# ):
-#     """
-#     Update specific fields of a sticker by product number (passed in URL)
-#     """
-#     try:
-#         sticker = db.query(StickerGenerator).filter(
-#             StickerGenerator.product_number == product_number
-#         ).first()
-        
-#         if not sticker:
-#             raise HTTPException(
-#                 status_code=404, 
-#                 detail=f"Product with number '{product_number}' not found"
-#             )
-        
-#         if sticker.is_sold:
-#             raise HTTPException(
-#                 status_code=400, 
-#                 detail="Cannot update sold product"
-#             )
-
-#         # Validate foreign keys
-#         if update_data.product_type_id:
-#             product_type = db.query(ProductType).filter(ProductType.id == update_data.product_type_id).first()
-#             if not product_type:
-#                 raise HTTPException(status_code=404, detail=f"Product type with ID {update_data.product_type_id} not found")
-        
-#         if update_data.colour_id:
-#             colour = db.query(Colour).filter(Colour.id == update_data.colour_id).first()
-#             if not colour:
-#                 raise HTTPException(status_code=404, detail=f"Colour with ID {update_data.colour_id} not found")
-        
-#         if update_data.quality_id:
-#             quality = db.query(Quality).filter(Quality.id == update_data.quality_id).first()
-#             if not quality:
-#                 raise HTTPException(status_code=404, detail=f"Quality with ID {update_data.quality_id} not found")
-
-#         # Update provided fields
-#         updated_fields = []
-
-#         if update_data.product_type_id is not None:
-#             sticker.product_type_id = update_data.product_type_id
-#             updated_fields.append("product_type_id")
-        
-#         if update_data.colour_id is not None:
-#             sticker.colour_id = update_data.colour_id
-#             updated_fields.append("colour_id")
-        
-#         if update_data.quality_id is not None:
-#             sticker.quality_id = update_data.quality_id
-#             updated_fields.append("quality_id")
-        
-#         if update_data.net_weight is not None:
-#             sticker.net_weight = update_data.net_weight
-#             updated_fields.append("net_weight")
-
-#         if update_data.is_sold is not None:
-#             sticker.is_sold = update_data.is_sold
-#             updated_fields.append("is_sold")
-
-#         if not updated_fields:
-#             raise HTTPException(
-#                 status_code=400, 
-#                 detail="No fields provided for update"
-#             )
-
-#         db.commit()
-#         db.refresh(sticker)
-
-#         return StickerUpdateResponse(
-#             id=sticker.id,
-#             product_number=sticker.product_number,
-#             product_type_id=sticker.product_type_id,
-#             colour_id=sticker.colour_id,
-#             quality_id=sticker.quality_id,
-#             net_weight=float(sticker.net_weight),
-#             is_sold=sticker.is_sold,
-#             message=f"Successfully updated fields: {', '.join(updated_fields)}"
-#         )
-
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         db.rollback()
-#         raise HTTPException(status_code=500, detail=f"Error updating sticker: {str(e)}")
-
-
-
-
-from collections import defaultdict
-import json
 
 def group_and_summarize_scanned_items(scanned_items_dict):
     """
@@ -1349,3 +1100,178 @@ def create_dispatch(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.get("/dispatch-manager/history", response_model=List[DispatchHistoryResponse])
+def get_dispatch_history(
+    start_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Get all dispatch history - simple version
+    """
+    try:
+        # Start with base query
+        query = db.query(DispatchManager)
+        
+        # Apply date filters if provided
+        if start_date:
+            # Convert date to datetime for comparison (start of day)
+            start_datetime = datetime.combine(start_date, datetime.min.time())
+            query = query.filter(DispatchManager.created_at >= start_datetime)
+        
+        if end_date:
+            # Convert date to datetime for comparison (end of day)
+            end_datetime = datetime.combine(end_date, datetime.max.time())
+            query = query.filter(DispatchManager.created_at <= end_datetime)
+        
+        # Order by created_at descending and execute query
+        dispatches = query.order_by(DispatchManager.created_at.desc()).all()
+        
+        return dispatches
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    
+@router.get("/dispatch-managers/{dispatch_id}", response_model=DispatchManagerResponse)
+def get_dispatch_manager(
+    dispatch_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+
+):
+    
+    # Query the database for the dispatch manager
+    dispatch_manager = db.query(DispatchManager).filter(
+        DispatchManager.id == dispatch_id
+    ).first()
+    
+    # Check if dispatch manager exists
+    if not dispatch_manager:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dispatch manager with ID {dispatch_id} not found"
+        )
+    
+    return dispatch_manager
+
+@router.put("/sticker-generator/update/{product_number}", response_model=StickerUpdateResponse)
+def update_sticker(
+    product_number: str,
+    update_data: StickerUpdateRequest,
+    db: Session = Depends(get_db),
+    # current_user = Depends(get_current_user)
+):
+    """
+    Update specific fields of a sticker by product number
+    """
+    try:
+        sticker = db.query(StickerGenerator).filter(
+            StickerGenerator.product_number == product_number
+        ).first()
+        
+        if not sticker:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Product with number '{product_number}' not found"
+            )
+        
+        # Check if sticker is already sold
+        if sticker.is_sold:
+            raise HTTPException(
+                status_code=400, 
+                detail="Cannot update sold product"
+            )
+        
+        # Validate foreign key references before updating
+        if update_data.product_type_id:
+            product_type = db.query(ProductType).filter(ProductType.id == update_data.product_type_id).first()
+            if not product_type:
+                raise HTTPException(status_code=404, detail=f"Product type with ID {update_data.product_type_id} not found")
+        
+        if update_data.colour_id:
+            colour = db.query(Colour).filter(Colour.id == update_data.colour_id).first()
+            if not colour:
+                raise HTTPException(status_code=404, detail=f"Colour with ID {update_data.colour_id} not found")
+        
+        if update_data.quality_id:
+            quality = db.query(Quality).filter(Quality.id == update_data.quality_id).first()
+            if not quality:
+                raise HTTPException(status_code=404, detail=f"Quality with ID {update_data.quality_id} not found")
+        
+        # Update only the provided fields
+        updated_fields = []
+        
+        if update_data.product_type_id is not None:
+            sticker.product_type_id = update_data.product_type_id
+            updated_fields.append("product_type_id")
+        
+        if update_data.colour_id is not None:
+            sticker.colour_id = update_data.colour_id
+            updated_fields.append("colour_id")
+        
+        if update_data.quality_id is not None:
+            sticker.quality_id = update_data.quality_id
+            updated_fields.append("quality_id")
+        
+        if update_data.net_weight is not None:
+            sticker.net_weight = update_data.net_weight
+            updated_fields.append("net_weight")
+
+        if update_data.gross_weight is not None:
+            sticker.gross_weight = update_data.gross_weight
+            updated_fields.append("gross_weight")
+
+        if update_data.length is not None:
+            sticker.length = update_data.length
+            updated_fields.append("length")
+
+        if update_data.width is not None:
+            sticker.width = update_data.width
+            updated_fields.append("width")
+
+        if update_data.is_sold is not None:
+            sticker.is_sold = update_data.is_sold
+            updated_fields.append("is_sold")
+        
+        if update_data.leminated is not None:
+            sticker.leminated = update_data.leminated
+            updated_fields.append("leminated")
+        
+        if not updated_fields:
+            raise HTTPException(
+                status_code=400, 
+                detail="No fields provided for update"
+            )
+        
+        # Commit the changes
+        db.commit()
+        db.refresh(sticker)
+        
+        # Prepare response
+        response_data = {
+            "id": sticker.id,
+            "product_number": sticker.product_number,
+            "product_type_id": sticker.product_type_id,
+            "colour_id": sticker.colour_id,
+            "quality_id": sticker.quality_id,
+            "net_weight": float(sticker.net_weight),
+            "gross_weight": float(sticker.gross_weight),
+            "length": float(sticker.length),
+            "width": float(sticker.width),
+            "is_sold": sticker.is_sold,
+            "leminated": sticker.leminated,
+            "message": f"Successfully updated fields: {', '.join(updated_fields)}"
+        }
+        
+        return StickerUpdateResponse(**response_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating sticker: {str(e)}")
+
+

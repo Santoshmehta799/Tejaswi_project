@@ -69,7 +69,11 @@ class StickerGeneratorResponse(StickerGeneratorCreate):
 class InventoryRecordResponse(BaseModel):
     product_code: str
     type: str
-    weight: Decimal
+    net_weight: Decimal
+    length: Decimal
+    width: Decimal
+    gross_weight: Decimal
+    gsm: int
     color: str
     quality: str
     colour_id: int
@@ -126,8 +130,11 @@ class ProductDetailsResponse(BaseModel):
     product_type: str
     quality: str
     colour: str
-    net_weight: Decimal
-    # gross_weight: Decimal
+    net_weight: Optional[Decimal]
+    gross_weight: Optional[Decimal]
+    length: Optional[Decimal]
+    width: Optional[Decimal]
+    gsm: Optional[str]
     
     class Config:
         from_attributes = True
@@ -138,6 +145,11 @@ class ScannedItemSchema(BaseModel):
     colour: str
     product_type: str
     weight: float
+    gross_weight: float
+    length: float
+    width: float
+    gsm: str
+
     
     class Config:
         from_attributes = True
@@ -148,7 +160,7 @@ class DispatchManagerResponse(BaseModel):
     vehicle_number: str
     driver_contact: str
     scanned_items: List[ScannedItemSchema]
-    dispatch_summary: Optional[dict] = None
+    disptach_summary: Optional[dict] = None
     total_items: int
     total_weight: float
     created_at: datetime
@@ -195,7 +207,11 @@ class StickerUpdateRequest(BaseModel):
     colour_id: Optional[int] = None
     quality_id: Optional[int] = None
     net_weight: Optional[float] = None
+    gross_weight: Optional[float] = None
+    length: Optional[float] = None
+    width: Optional[float] = None
     is_sold : Optional[bool] = None
+    leminated: Optional[bool] = None
 
 # Response model
 class StickerUpdateResponse(BaseModel):
@@ -205,7 +221,11 @@ class StickerUpdateResponse(BaseModel):
     colour_id: int
     quality_id: int
     net_weight: float
+    gross_weight: float
+    length: float
+    width: float
     is_sold: bool
+    leminated: bool
     message: str
     
     class Config:
@@ -213,3 +233,42 @@ class StickerUpdateResponse(BaseModel):
 
 class DeleteResponse(BaseModel):
     detail: str
+
+
+class ColourResponse(BaseModel):
+    # id: int
+    name: str 
+    
+    class Config:
+        from_attributes = True
+
+class QualityResponse(BaseModel):
+    # id: int
+    name: str
+    
+    class Config:
+        from_attributes = True
+
+class ProductTypeResponse(BaseModel):
+    # id: int
+    name: str 
+    
+    class Config:
+        from_attributes = True
+
+class StickerResponse(BaseModel):
+    colour: Optional[ColourResponse]
+    quality: Optional[QualityResponse]
+    product_type: Optional[ProductTypeResponse]
+    serial_number: Optional[str]
+    gsm: Optional[str]
+    net_weight: Optional[Decimal]
+    gross_weight: Optional[Decimal]
+    length: Optional[Decimal]
+    width: Optional[Decimal]
+    trading_name: Optional[str]
+    qr_code_base64: Optional[str]
+    qr_code_filename: Optional[str]
+    
+    class Config:
+        from_attributes = True
