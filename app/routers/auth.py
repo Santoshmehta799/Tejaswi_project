@@ -903,7 +903,11 @@ def get_all_scanned_products(
                 product_type=sp.product_type,
                 quality=sp.quality,
                 colour=sp.colour,
-                net_weight=sp.net_weight
+                net_weight=sp.net_weight,
+                gross_weight=sp.gross_weight,
+                length=sp.length,
+                width=sp.width,
+                gsm=sp.gsm,
             ) for sp in scanned_products
         ]
 
