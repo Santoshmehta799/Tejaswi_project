@@ -376,8 +376,7 @@ class AdminConfigService:
             "message": f"{self.display_names[config_type]} '{item.name}' updated successfully",
             "data": response_data
         }
-
-    
+   
     def create_item(self, config_type: str, name: str, db: Session):
         """Create new configuration item"""
         model = self.get_model(config_type)
@@ -1080,6 +1079,24 @@ def create_dispatch(
         db.add(db_dispatch)
         db.commit()
         db.refresh(db_dispatch)
+
+        # Get all scanned products for current user before deletion
+        scanned_products = db.query(ScannedProduct).filter_by(user_id=current_user.id).all()
+
+        # Extract product numbers from scanned products
+        product_numbers = [product.product_number for product in scanned_products]
+
+        # Mark corresponding StickerGenerator records as sold
+        # if product_numbers:
+        #     db.query(StickerGenerator).filter(
+        #         StickerGenerator.product_number.in_(product_numbers)
+        #     ).update({"is_sold": True}, synchronize_session=False)
+
+        if product_numbers:
+            deleted_count = db.query(StickerGenerator).filter(
+                StickerGenerator.product_number.in_(product_numbers)
+            ).delete(synchronize_session=False)
+            print(f"Deleted ===================>>>{deleted_count} StickerGenerator records")
 
         # Clean up scanned products for current user
         db.query(ScannedProduct).filter_by(user_id=current_user.id).delete()
