@@ -123,8 +123,3 @@ class DispatchManager(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     status = Column(String, default="pending")
-
-    # gross_weight = Column(DECIMAL(10, 2))
-    # gsm = Column(String(10))
-    # length = Column(DECIMAL(10, 2))
-    # width = Column(DECIMAL(10, 2))
