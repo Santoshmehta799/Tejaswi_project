@@ -2,8 +2,23 @@ import enum
 from .database import Base
 from datetime import datetime
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Integer, String, Enum, ForeignKey, Date, DateTime, DECIMAL, \
-    CheckConstraint, Text, LargeBinary, UniqueConstraint, JSON, Float, Boolean
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Enum,
+    ForeignKey,
+    Date,
+    DateTime,
+    DECIMAL,
+    CheckConstraint,
+    Text,
+    LargeBinary,
+    UniqueConstraint,
+    JSON,
+    Float,
+    Boolean,
+)
 
 
 class UserRole(enum.Enum):
@@ -11,9 +26,11 @@ class UserRole(enum.Enum):
     STICKER_GUYS = "sticker_guys"
     DISPATCH_GUYS = "dispatch_guys"
 
+
 class ShiftType(enum.Enum):
     A = "A (8AM-8PM)"
     B = "B (8PM-8AM)"
+
 
 class User(Base):
     __tablename__ = "users"
@@ -24,10 +41,10 @@ class User(Base):
     role = Column(String)
 
 
-
 class TradingName(enum.Enum):
     BHARAT = "bharat"
     GREEN = "green"
+
 
 class Quality(Base):
     __tablename__ = "quality"
@@ -35,18 +52,21 @@ class Quality(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100))
 
+
 class Colour(Base):
     __tablename__ = "colour"
 
     name = Column(String(100))
     id = Column(Integer, primary_key=True, index=True)
-    is_white = Column(Boolean, nullable=False) 
+    is_white = Column(Boolean, nullable=False)
+
 
 class ProductType(Base):
     __tablename__ = "product_type"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100))
+
 
 class StorageLocation(Base):
     __tablename__ = "storage_location"
@@ -75,21 +95,23 @@ class StickerGenerator(Base):
     width = Column(DECIMAL(10, 2))
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.id"))
-    qr_code_data = Column(Text)  
-    qr_code_image = Column(LargeBinary)  
-    qr_code_filename = Column(String(255)) 
+    qr_code_data = Column(Text)
+    qr_code_image = Column(LargeBinary)
+    qr_code_filename = Column(String(255))
     is_sold = Column(Boolean, default=False)
-    leminated = Column(Boolean, default=False)   # update that spelling
+    leminated = Column(Boolean, default=False)  # update that spelling
     colour = relationship("Colour")
     quality = relationship("Quality")
     product_type = relationship("ProductType")
     storage_location = relationship("StorageLocation")
 
     __table_args__ = (
-    CheckConstraint("trading_name IN ('bharat', 'green')", name="check_trading_name_valid"),
-    CheckConstraint("shift IN ('8AM-8PM', '8PM-8AM')", name="check_shift_valid"), 
-    UniqueConstraint('product_number', name='uq_product_number'),
-    )  
+        CheckConstraint(
+            "trading_name IN ('bharat', 'green')", name="check_trading_name_valid"
+        ),
+        CheckConstraint("shift IN ('8AM-8PM', '8PM-8AM')", name="check_shift_valid"),
+        UniqueConstraint("product_number", name="uq_product_number"),
+    )
 
 
 class ScannedProduct(Base):
@@ -106,7 +128,7 @@ class ScannedProduct(Base):
     gsm = Column(String(10))
     length = Column(DECIMAL(10, 2))
     width = Column(DECIMAL(10, 2))
-    created_at = Column(DateTime, default=datetime.utcnow) 
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class DispatchManager(Base):

@@ -7,10 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-origins = [
-    "http://localhost:3000",
-    "http://77.37.47.74"
-]
+origins = ["http://localhost:3000", "http://77.37.47.74"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,10 +17,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 def read_root():
     return {"message": "Working api====>"}
 
+
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
-
-
