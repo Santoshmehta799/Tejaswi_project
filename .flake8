@@ -1,0 +1,12 @@
+[flake8]
+# Maximum line length (default 79). Badhake 120 kar rahe hain.
+max-line-length = 120
+
+# Ignore these errors:
+#   E501 line too long
+#   F401 unused import
+#   F811 redefinition of unused name
+ignore =
+    E501,
+    F401,
+    F811
