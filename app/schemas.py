@@ -9,10 +9,10 @@ from typing import List, Optional, Literal
 from typing import Union, List, Dict, Any, Optional
 
 
-
 class LoginSchema(BaseModel):
     username: str
     password: str
+
 
 class UserCreate(BaseModel):
     username: str
@@ -24,9 +24,11 @@ class TradingName(str, enum.Enum):
     bharat = "bharat"
     green = "green"
 
+
 class ShiftType(str, enum.Enum):
     day = "8AM-8PM"
     night = "8PM-8AM"
+
 
 class StickerGeneratorCreate(BaseModel):
     quality_id: int
@@ -34,7 +36,7 @@ class StickerGeneratorCreate(BaseModel):
     product_type_id: int
     storage_location_id: int
     shift: ShiftType
-    trading_name:TradingName
+    trading_name: TradingName
     production_date: date
     serial_number: str
     gsm: str
@@ -43,18 +45,20 @@ class StickerGeneratorCreate(BaseModel):
     length: float
     width: float
 
+
 class RelatedItem(BaseModel):
     id: int
     name: str
-    
+
     class Config:
         orm_mode = True
+
 
 class StickerGeneratorResponse(StickerGeneratorCreate):
     id: int
     product_number: str
     created_at: datetime
-    created_by: int 
+    created_by: int
     qr_code_filename: Optional[str] = None
 
     colour: Optional[RelatedItem] = None
@@ -62,9 +66,9 @@ class StickerGeneratorResponse(StickerGeneratorCreate):
     product_type: Optional[RelatedItem] = None
     storage_location: Optional[RelatedItem] = None
 
-
     class Config:
         orm_mode = True
+
 
 class InventoryRecordResponse(BaseModel):
     product_code: str
@@ -82,30 +86,37 @@ class InventoryRecordResponse(BaseModel):
     is_sold: Optional[bool] = False
     leminated: Optional[bool] = False
 
-    
     class Config:
         from_attributes = True
+
 
 class ProductNumberPreview(BaseModel):
     product_number: str
 
+
 class ConfigItemCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
+
 
 class ConfigItemUpdate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
 
+
 class ConfigItemResponse(BaseModel):
     id: int
     name: str
-    
+
     class Config:
         orm_mode = True
 
 
 class AdminConfigRequest(BaseModel):
-    action: Literal["create", "update", "delete", "get", "list","create_colour", "update_colour"]
-    config_type: Literal["quality", "colour", "product_type", "storage_location", "all"]  # Added "all"
+    action: Literal[
+        "create", "update", "delete", "get", "list", "create_colour", "update_colour"
+    ]
+    config_type: Literal[
+        "quality", "colour", "product_type", "storage_location", "all"
+    ]  # Added "all"
     # action: Literal["create", "update", "delete", "get", "list","create_colour", "update_colour", "create_client_name"]
     # config_type: Literal["quality", "colour", "product_type", "storage_location", "all", "clinet_name"]  # Added "all"
     name: Optional[str] = None
@@ -121,14 +132,16 @@ class AdminConfigResponse(BaseModel):
     count: Optional[int] = None
     total_count: Optional[int] = None
 
+
 class NameSchema(BaseModel):
     name: str
 
     class Config:
         orm_mode = True
 
+
 class ProductDetailsResponse(BaseModel):
-    product_number:str
+    product_number: str
     product_type: str
     quality: str
     colour: str
@@ -137,9 +150,10 @@ class ProductDetailsResponse(BaseModel):
     length: Optional[Decimal]
     width: Optional[Decimal]
     gsm: Optional[str]
-    
+
     class Config:
         from_attributes = True
+
 
 class ScannedItemSchema(BaseModel):
     product_number: str
@@ -152,9 +166,9 @@ class ScannedItemSchema(BaseModel):
     width: float
     gsm: str
 
-    
     class Config:
         from_attributes = True
+
 
 class DispatchManagerResponse(BaseModel):
     id: int
@@ -168,16 +182,17 @@ class DispatchManagerResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     status: str
-    
+
     class Config:
         from_attributes = True
+
 
 class DispatchManagerCreate(BaseModel):
     select_client: str = Field(..., description="Client name")
     vehicle_number: str = Field(..., description="Vehicle number")
     driver_contact: str = Field(..., description="Driver contact number")
     scanned_items: List[str] = Field(..., description="List of scanned item strings")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -187,10 +202,11 @@ class DispatchManagerCreate(BaseModel):
                 "scanned_items": [
                     "[A24MY001] - Premium - White - Roll - 45.6kg",
                     "[A24MY002] - Premium - Blue - Roll - 42.2kg",
-                    "[A24MY003] - Premium - White - Patti - 12.4kg"
-                ]
+                    "[A24MY003] - Premium - White - Patti - 12.4kg",
+                ],
             }
         }
+
 
 class DispatchHistoryResponse(BaseModel):
     id: int
@@ -212,8 +228,9 @@ class StickerUpdateRequest(BaseModel):
     gross_weight: Optional[float] = None
     length: Optional[float] = None
     width: Optional[float] = None
-    is_sold : Optional[bool] = None
+    is_sold: Optional[bool] = None
     leminated: Optional[bool] = None
+
 
 # Response model
 class StickerUpdateResponse(BaseModel):
@@ -229,9 +246,10 @@ class StickerUpdateResponse(BaseModel):
     is_sold: bool
     leminated: bool
     message: str
-    
+
     class Config:
         orm_mode = True
+
 
 class DeleteResponse(BaseModel):
     detail: str
@@ -239,24 +257,27 @@ class DeleteResponse(BaseModel):
 
 class ColourResponse(BaseModel):
     # id: int
-    name: str 
-    
+    name: str
+
     class Config:
         from_attributes = True
+
 
 class QualityResponse(BaseModel):
     # id: int
     name: str
-    
+
     class Config:
         from_attributes = True
 
+
 class ProductTypeResponse(BaseModel):
     # id: int
-    name: str 
-    
+    name: str
+
     class Config:
         from_attributes = True
+
 
 class StickerResponse(BaseModel):
     colour: Optional[ColourResponse]
@@ -271,6 +292,6 @@ class StickerResponse(BaseModel):
     trading_name: Optional[str]
     qr_code_base64: Optional[str]
     qr_code_filename: Optional[str]
-    
+
     class Config:
         from_attributes = True
