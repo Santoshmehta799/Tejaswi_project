@@ -106,6 +106,8 @@ class ConfigItemResponse(BaseModel):
 class AdminConfigRequest(BaseModel):
     action: Literal["create", "update", "delete", "get", "list","create_colour", "update_colour"]
     config_type: Literal["quality", "colour", "product_type", "storage_location", "all"]  # Added "all"
+    # action: Literal["create", "update", "delete", "get", "list","create_colour", "update_colour", "create_client_name"]
+    # config_type: Literal["quality", "colour", "product_type", "storage_location", "all", "clinet_name"]  # Added "all"
     name: Optional[str] = None
     item_id: Optional[int] = None
     id: Optional[int] = None
