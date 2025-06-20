@@ -7,6 +7,8 @@ max-line-length = 120
 #   F401 unused import
 #   F811 redefinition of unused name
 ignore =
-    E501,
-    F401,
-    F811
+    E501,  # line too long
+    F401,  # unused import
+    F811,  # redefinition of unused name
+    E402,  # import not at top
+    F841   # assigned but not used
