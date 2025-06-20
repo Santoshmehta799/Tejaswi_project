@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from app.database import Base, engine
 from app.routers import auth
+from app.database import Base, engine
 
 Base.metadata.create_all(bind=engine)
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +22,7 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    return {"message": "Hello World"}
+    return {"message": "Working api====>"}
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 

@@ -279,6 +279,7 @@ class AdminConfigService:
             "colour": Colour,
             "product_type": ProductType,
             "storage_location": StorageLocation
+            # "clinet_name": DispatchManager
         }
         
         # Display names for better UX
@@ -287,6 +288,8 @@ class AdminConfigService:
             "colour": "Colour",
             "product_type": "Product Type",
             "storage_location": "Storage Location"
+            # "clinet_name": "Client Name"
+
         }
     
     def get_model(self, config_type: str):
@@ -400,6 +403,32 @@ class AdminConfigService:
             "message": f"{self.display_names[config_type]} '{name}' created successfully",
             "data": {"id": new_item.id, "name": new_item.name}
         }
+    
+    # def client_name(self, config_type: str, select_client: str, db: Session):
+    #     print("---------------------------------------------------")
+    #     """Create new configuration item"""
+    #     model = self.get_model(config_type)
+    #     print("-=-=-111=-=-=>>>",model)
+    #     # Check if item already exists
+    #     existing = db.query(model).filter(model.select_client.ilike(select_client.strip())).first()
+    #     print("--==-=-existing=-=--=>>>>>",existing)
+    #     if existing:
+    #         raise HTTPException(
+    #             status_code=400,
+    #             detail=f"{self.display_names[config_type]} '{select_client}' already exists"
+    #         )
+        
+    #     # Create new item
+    #     new_item = model(select_client=select_client.strip())
+    #     db.add(new_item)
+    #     db.commit()
+    #     db.refresh(new_item)
+        
+    #     return {
+    #         "success": True,
+    #         "message": f"{self.display_names[config_type]} '{select_client}' created successfully",
+    #         # "data": {"id": new_item.id, "name": new_item.name}
+    #     }
     
     def update_item(self, config_type: str, item_id: int, name: str, db: Session):
         """Update existing configuration item"""
@@ -565,6 +594,15 @@ def manage_config(
                 db=db, 
                 is_white=request.is_white
             )
+        
+        # elif request.action == "create_client_name":
+        #     if not request.name:
+        #         raise HTTPException(status_code=400, detail="Name is required for create action")
+        #     return admin_service.client_name(
+        #         config_type=request.config_type, 
+        #         select_client=request.name, 
+        #         db=db,
+        #     )
         
         elif request.action == "update_colour":
             if not request.id:
