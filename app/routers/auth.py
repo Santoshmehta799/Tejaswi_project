@@ -121,11 +121,11 @@ def login(user_credentials: LoginSchema, db: Session = Depends(get_db)):
         )
 
     access_token = create_access_token(
-        data={"sub": str(user.id), "role": user.role}  # ✅ Convert enum to string
+        data={"sub": str(user.id), "role": user.role}
     )
 
     refresh_token = create_refresh_token(
-        data={"sub": str(user.id), "role": user.role}  # ✅ Convert enum to string
+        data={"sub": str(user.id), "role": user.role}
     )
 
     return {
