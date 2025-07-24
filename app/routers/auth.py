@@ -94,6 +94,10 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     return token_data
 
 
+@router.get("/testing-api/")
+def read_root():
+    return {"message": "Working api====>"}
+
 @router.post("/users/")
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.username == user.username).first()
@@ -805,7 +809,6 @@ def generate_product_number(
     shift: str, production_date: date, serial_number: str
 ) -> str:
     """Generate a complete product number based on shift, production date, and serial number"""
-    print("-------------------------yes this is call-------??")
 
     # Get shift code
     shift_code = get_shift_code(shift)
@@ -816,6 +819,8 @@ def generate_product_number(
     # Get month code
     month_code = get_month_code(production_date.month)
 
+    year_last_digit = str(production_date.year)[-1]
+
     # Ensure serial_number is 3 digits
     if isinstance(serial_number, str):
         # If it's already a string, try to format it as 3 digits
@@ -823,15 +828,87 @@ def generate_product_number(
             serial_int = int(serial_number)
             formatted_serial = f"{serial_int:03d}"
         except ValueError:
-            formatted_serial = serial_number  # Use as is if can't convert
+            formatted_serial = serial_number
     else:
         formatted_serial = f"{serial_number:03d}"
 
     # Combine all parts using the provided serial number
-    product_number = f"{shift_code}{day}{month_code}{serial_number}"
+    product_number = f"{shift_code}{day}{month_code}{year_last_digit}{serial_number}"
 
     return product_number
 
+# pageination vala function
+# @router.get("/inventory/records", response_model=List[InventoryRecordResponse])
+# def get_all_inventory_records(
+#     db: Session = Depends(get_db),
+#     current_user=Depends(get_current_user),
+#     page: int = Query(1, ge=1),
+#     page_size: int = Query(10, ge=1),
+# ):
+#     """
+#     Get paginated inventory records with only selected fields.
+#     """
+#     try:
+#         offset = (page - 1) * page_size
+
+#         # Main query with joins
+#         query = (
+#             select(
+#                 StickerGenerator.product_number.label("product_code"),
+#                 ProductType.name.label("type"),
+#                 StickerGenerator.net_weight.label("net_weight"),
+#                 StickerGenerator.gross_weight.label("gross_weight"),
+#                 StickerGenerator.width.label("width"),
+#                 StickerGenerator.length.label("length"),
+#                 StickerGenerator.gsm.label("gsm"),
+#                 Colour.name.label("color"),
+#                 Quality.name.label("quality"),
+#                 StickerGenerator.is_sold.label("is_sold"),
+#                 StickerGenerator.quality_id.label("quality_id"),
+#                 StickerGenerator.colour_id.label("colour_id"),
+#                 StickerGenerator.product_type_id.label("product_type_id"),
+#                 StickerGenerator.leminated.label("leminated"),
+#             )
+#             .join(ProductType, StickerGenerator.product_type_id == ProductType.id)
+#             .join(Colour, StickerGenerator.colour_id == Colour.id)
+#             .join(Quality, StickerGenerator.quality_id == Quality.id)
+#             .order_by(StickerGenerator.product_number)
+#             .offset(offset)
+#             .limit(page_size)
+#         )
+
+#         result = db.execute(query)
+#         records = result.fetchall()
+
+#         inventory_records = []
+#         for record in records:
+#             inventory_records.append(
+#                 InventoryRecordResponse(
+#                     product_code=record.product_code,
+#                     type=record.type.capitalize(),
+#                     net_weight=record.net_weight,
+#                     gross_weight=record.gross_weight,
+#                     width=record.width,
+#                     length=record.length,
+#                     gsm=record.gsm,
+#                     color=record.color.capitalize(),
+#                     quality_id=record.quality_id,
+#                     colour_id=record.colour_id,
+#                     product_type_id=record.product_type_id,
+#                     quality=record.quality.capitalize(),
+#                     is_sold=record.is_sold,
+#                     leminated=record.leminated,
+#                 )
+#             )
+
+#         return inventory_records
+
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=500, detail=f"Error fetching inventory records: {str(e)}"
+#         )
+    
+# Without pagination :
 
 @router.get("/inventory/records", response_model=List[InventoryRecordResponse])
 def get_all_inventory_records(

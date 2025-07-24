@@ -77,7 +77,7 @@ class InventoryRecordResponse(BaseModel):
     length: Decimal
     width: Decimal
     gross_weight: Decimal
-    gsm: int
+    gsm: Decimal
     color: str
     quality: str
     colour_id: int
@@ -284,6 +284,7 @@ class StickerResponse(BaseModel):
     quality: Optional[QualityResponse]
     product_type: Optional[ProductTypeResponse]
     serial_number: Optional[str]
+    product_number:Optional[str]
     gsm: Optional[str]
     net_weight: Optional[Decimal]
     gross_weight: Optional[Decimal]
