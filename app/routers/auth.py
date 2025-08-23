@@ -13,7 +13,6 @@ from datetime import datetime
 from sqlalchemy import select
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
-from sqlalchemy.orm import Session
 from collections import defaultdict
 from ..database import SessionLocal
 from sqlalchemy.orm import joinedload
@@ -837,21 +836,103 @@ def generate_product_number(
 
     return product_number
 
-# pageination vala function
+# With pageination function
+@router.get("/inventory/records")
+def get_all_inventory_records(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1),
+):
+    """
+    Get paginated inventory records with only selected fields.
+    """
+    try:
+        offset = (page - 1) * page_size
+
+        # Count total records
+        total_count = db.query(StickerGenerator).count()
+        total_pages = (total_count + page_size - 1) // page_size  # ceil division
+
+        # Main query with joins
+        query = (
+            select(
+                StickerGenerator.product_number.label("product_code"),
+                ProductType.name.label("type"),
+                StickerGenerator.net_weight.label("net_weight"),
+                StickerGenerator.gross_weight.label("gross_weight"),
+                StickerGenerator.width.label("width"),
+                StickerGenerator.length.label("length"),
+                StickerGenerator.gsm.label("gsm"),
+                Colour.name.label("color"),
+                Quality.name.label("quality"),
+                StickerGenerator.is_sold.label("is_sold"),
+                StickerGenerator.quality_id.label("quality_id"),
+                StickerGenerator.colour_id.label("colour_id"),
+                StickerGenerator.product_type_id.label("product_type_id"),
+                StickerGenerator.leminated.label("leminated"),
+            )
+            .join(ProductType, StickerGenerator.product_type_id == ProductType.id)
+            .join(Colour, StickerGenerator.colour_id == Colour.id)
+            .join(Quality, StickerGenerator.quality_id == Quality.id)
+            .order_by(StickerGenerator.product_number)
+            .offset(offset)
+            .limit(page_size)
+        )
+
+        result = db.execute(query)
+        records = result.fetchall()
+
+        inventory_records = []
+        for record in records:
+            inventory_records.append(
+                InventoryRecordResponse(
+                    product_code=record.product_code,
+                    type=record.type.capitalize(),
+                    net_weight=record.net_weight,
+                    gross_weight=record.gross_weight,
+                    width=record.width,
+                    length=record.length,
+                    gsm=record.gsm,
+                    color=record.color.capitalize(),
+                    quality_id=record.quality_id,
+                    colour_id=record.colour_id,
+                    product_type_id=record.product_type_id,
+                    quality=record.quality.capitalize(),
+                    is_sold=record.is_sold,
+                    leminated=record.leminated,
+                )
+            )
+
+        return {
+            "results": inventory_records,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "current_page": page,
+            "page_size": page_size,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching inventory records: {str(e)}"
+        )
+    
+# Without pagination :
+
 # @router.get("/inventory/records", response_model=List[InventoryRecordResponse])
 # def get_all_inventory_records(
-#     db: Session = Depends(get_db),
-#     current_user=Depends(get_current_user),
-#     page: int = Query(1, ge=1),
-#     page_size: int = Query(10, ge=1),
+#     db: Session = Depends(get_db), current_user=Depends(get_current_user)
 # ):
 #     """
-#     Get paginated inventory records with only selected fields.
+#     Get all inventory records with only the fields shown in the inventory table:
+#     - Product Code (product_number)
+#     - Type (from product_type table)
+#     - Weight (net_weight)
+#     - Color (from colour table)
+#     - Quality (from quality table)
 #     """
 #     try:
-#         offset = (page - 1) * page_size
-
-#         # Main query with joins
+#         # Query with joins to get related data
 #         query = (
 #             select(
 #                 StickerGenerator.product_number.label("product_code"),
@@ -873,13 +954,12 @@ def generate_product_number(
 #             .join(Colour, StickerGenerator.colour_id == Colour.id)
 #             .join(Quality, StickerGenerator.quality_id == Quality.id)
 #             .order_by(StickerGenerator.product_number)
-#             .offset(offset)
-#             .limit(page_size)
 #         )
 
 #         result = db.execute(query)
 #         records = result.fetchall()
 
+#         # Convert to response format
 #         inventory_records = []
 #         for record in records:
 #             inventory_records.append(
@@ -907,77 +987,6 @@ def generate_product_number(
 #         raise HTTPException(
 #             status_code=500, detail=f"Error fetching inventory records: {str(e)}"
 #         )
-    
-# Without pagination :
-
-@router.get("/inventory/records", response_model=List[InventoryRecordResponse])
-def get_all_inventory_records(
-    db: Session = Depends(get_db), current_user=Depends(get_current_user)
-):
-    """
-    Get all inventory records with only the fields shown in the inventory table:
-    - Product Code (product_number)
-    - Type (from product_type table)
-    - Weight (net_weight)
-    - Color (from colour table)
-    - Quality (from quality table)
-    """
-    try:
-        # Query with joins to get related data
-        query = (
-            select(
-                StickerGenerator.product_number.label("product_code"),
-                ProductType.name.label("type"),
-                StickerGenerator.net_weight.label("net_weight"),
-                StickerGenerator.gross_weight.label("gross_weight"),
-                StickerGenerator.width.label("width"),
-                StickerGenerator.length.label("length"),
-                StickerGenerator.gsm.label("gsm"),
-                Colour.name.label("color"),
-                Quality.name.label("quality"),
-                StickerGenerator.is_sold.label("is_sold"),
-                StickerGenerator.quality_id.label("quality_id"),
-                StickerGenerator.colour_id.label("colour_id"),
-                StickerGenerator.product_type_id.label("product_type_id"),
-                StickerGenerator.leminated.label("leminated"),
-            )
-            .join(ProductType, StickerGenerator.product_type_id == ProductType.id)
-            .join(Colour, StickerGenerator.colour_id == Colour.id)
-            .join(Quality, StickerGenerator.quality_id == Quality.id)
-            .order_by(StickerGenerator.product_number)
-        )
-
-        result = db.execute(query)
-        records = result.fetchall()
-
-        # Convert to response format
-        inventory_records = []
-        for record in records:
-            inventory_records.append(
-                InventoryRecordResponse(
-                    product_code=record.product_code,
-                    type=record.type.capitalize(),
-                    net_weight=record.net_weight,
-                    gross_weight=record.gross_weight,
-                    width=record.width,
-                    length=record.length,
-                    gsm=record.gsm,
-                    color=record.color.capitalize(),
-                    quality_id=record.quality_id,
-                    colour_id=record.colour_id,
-                    product_type_id=record.product_type_id,
-                    quality=record.quality.capitalize(),
-                    is_sold=record.is_sold,
-                    leminated=record.leminated,
-                )
-            )
-
-        return inventory_records
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error fetching inventory records: {str(e)}"
-        )
 
 
 @router.get("/inventroy-data/{product_number}/qr-code", response_model=StickerResponse)
