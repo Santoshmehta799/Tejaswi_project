@@ -32,6 +32,7 @@ class ShiftType(enum.Enum):
     B = "B (8PM-8AM)"
 
 
+
 class User(Base):
     __tablename__ = "users"
 
