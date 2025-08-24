@@ -843,6 +843,7 @@ def get_all_inventory_records(
     current_user=Depends(get_current_user),
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1),
+    product_number: str | None = Query(None),
 ):
     """
     Get paginated inventory records with only selected fields.
@@ -850,8 +851,13 @@ def get_all_inventory_records(
     try:
         offset = (page - 1) * page_size
 
-        # Count total records
-        total_count = db.query(StickerGenerator).count()
+        # Base query for counting
+        base_filter = db.query(StickerGenerator)
+        if product_number:
+            base_filter = base_filter.filter(StickerGenerator.product_number.ilike(f"%{product_number}%"))
+        
+        # Count total records (with filter applied)
+        total_count = base_filter.count()
         total_pages = (total_count + page_size - 1) // page_size  # ceil division
 
         # Main query with joins
@@ -875,7 +881,14 @@ def get_all_inventory_records(
             .join(ProductType, StickerGenerator.product_type_id == ProductType.id)
             .join(Colour, StickerGenerator.colour_id == Colour.id)
             .join(Quality, StickerGenerator.quality_id == Quality.id)
-            .order_by(StickerGenerator.product_number)
+        )
+        
+        # Apply product_number filter if provided
+        if product_number:
+            query = query.filter(StickerGenerator.product_number.ilike(f"%{product_number}%"))
+        
+        query = (
+            query.order_by(StickerGenerator.product_number)
             .offset(offset)
             .limit(page_size)
         )
