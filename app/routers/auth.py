@@ -3,6 +3,7 @@ import io
 import json
 import qrcode
 import base64
+import pandas as pd
 from PIL import Image
 from io import BytesIO
 from typing import List
@@ -17,6 +18,7 @@ from collections import defaultdict
 from ..database import SessionLocal
 from sqlalchemy.orm import joinedload
 from fastapi import Response, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -33,7 +35,6 @@ from ..models import (
 from ..schemas import (
     AdminConfigRequest,
     AdminConfigResponse,
-    ConfigItemCreate,
     DeleteResponse,
     DispatchHistoryResponse,
     DispatchManagerCreate,
@@ -835,6 +836,90 @@ def generate_product_number(
     product_number = f"{shift_code}{day}{month_code}{year_last_digit}{serial_number}"
 
     return product_number
+
+@router.get("/inventory/export")
+def export_inventory_records(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+    product_number: str | None = Query(None),
+):
+    """
+    Export inventory records to an Excel file.
+    """
+    try:
+        # Base query with joins
+        query = (
+            select(
+                StickerGenerator.product_number.label("product_code"),
+                ProductType.name.label("type"),
+                StickerGenerator.net_weight.label("net_weight"),
+                StickerGenerator.gross_weight.label("gross_weight"),
+                StickerGenerator.width.label("width"),
+                StickerGenerator.length.label("length"),
+                StickerGenerator.gsm.label("gsm"),
+                Colour.name.label("color"),
+                Quality.name.label("quality"),
+                StickerGenerator.is_sold.label("is_sold"),
+                StickerGenerator.quality_id.label("quality_id"),
+                StickerGenerator.colour_id.label("colour_id"),
+                StickerGenerator.product_type_id.label("product_type_id"),
+                StickerGenerator.leminated.label("leminated"),
+            )
+            .join(ProductType, StickerGenerator.product_type_id == ProductType.id)
+            .join(Colour, StickerGenerator.colour_id == Colour.id)
+            .join(Quality, StickerGenerator.quality_id == Quality.id)
+        )
+
+        # Filter
+        if product_number:
+            query = query.filter(StickerGenerator.product_number.ilike(f"%{product_number}%"))
+
+        result = db.execute(query)
+        records = result.fetchall()
+
+        # Convert to list of dicts
+        data = [
+            {
+                "Product Code": r.product_code,
+                "Type": r.type.capitalize(),
+                "Net Weight": r.net_weight,
+                "Gross Weight": r.gross_weight,
+                "Width": r.width,
+                "Length": r.length,
+                "GSM": r.gsm,
+                "Color": r.color.capitalize(),
+                "Quality": r.quality.capitalize(),
+                "Is Sold": r.is_sold,
+                "Leminated": r.leminated,
+            }
+            for r in records
+        ]
+
+        if not data:
+            raise HTTPException(status_code=404, detail="No records found to export.")
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data)
+
+        # Save to Excel in memory
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="InventoryRecords")
+        output.seek(0)
+
+        # Return as downloadable file
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": "attachment; filename=inventory_records.xlsx"
+            },
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error exporting inventory records: {str(e)}"
+        )
 
 # With pageination function
 @router.get("/inventory/records")
