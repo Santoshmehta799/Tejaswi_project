@@ -25,6 +25,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from ..models import (
     Colour,
     DispatchManager,
+    Party,
     ProductType,
     Quality,
     ScannedProduct,
@@ -177,6 +178,7 @@ def generate_qr_code(sticker_data: StickerGenerator) -> tuple[str, bytes, str]:
         "quality_id": sticker_data.quality_id,
         "colour_id": sticker_data.colour_id,
         "product_type_id": sticker_data.product_type_id,
+        "party_id": sticker_data.party_id,
         "net_weight": float(sticker_data.net_weight),
         "gross_weight": float(sticker_data.gross_weight),
         "created_at": sticker_data.created_at.isoformat(),
@@ -331,6 +333,7 @@ class AdminConfigService:
             "colour": Colour,
             "product_type": ProductType,
             "storage_location": StorageLocation,
+            "party": Party,
             # "clinet_name": DispatchManager
         }
 
@@ -340,6 +343,7 @@ class AdminConfigService:
             "colour": "Colour",
             "product_type": "Product Type",
             "storage_location": "Storage Location",
+            "party": "Party",
             # "clinet_name": "Client Name"
         }
 
@@ -459,31 +463,6 @@ class AdminConfigService:
             "data": {"id": new_item.id, "name": new_item.name},
         }
 
-    # def client_name(self, config_type: str, select_client: str, db: Session):
-    #     print("---------------------------------------------------")
-    #     """Create new configuration item"""
-    #     model = self.get_model(config_type)
-    #     print("-=-=-111=-=-=>>>",model)
-    #     # Check if item already exists
-    #     existing = db.query(model).filter(model.select_client.ilike(select_client.strip())).first()
-    #     print("--==-=-existing=-=--=>>>>>",existing)
-    #     if existing:
-    #         raise HTTPException(
-    #             status_code=400,
-    #             detail=f"{self.display_names[config_type]} '{select_client}' already exists"
-    #         )
-
-    #     # Create new item
-    #     new_item = model(select_client=select_client.strip())
-    #     db.add(new_item)
-    #     db.commit()
-    #     db.refresh(new_item)
-
-    #     return {
-    #         "success": True,
-    #         "message": f"{self.display_names[config_type]} '{select_client}' created successfully",
-    #         # "data": {"id": new_item.id, "name": new_item.name}
-    #     }
 
     def update_item(self, config_type: str, item_id: int, name: str, db: Session):
         """Update existing configuration item"""
@@ -531,9 +510,7 @@ class AdminConfigService:
                 status_code=404, detail=f"{self.display_names[config_type]} not found"
             )
 
-        # Check if item is being used (you may need to customize this based on your relationships)
-        # For now, we'll allow deletion - add constraints as needed
-
+       
         item_name = item.name
         db.delete(item)
         db.commit()
@@ -568,6 +545,7 @@ class AdminConfigService:
             "colour": Colour,
             "product_type": ProductType,
             "storage_location": StorageLocation,
+            "party": Party,
         }
 
         if config_type == "all" or not config_type:
@@ -654,15 +632,6 @@ def manage_config(
                 is_white=request.is_white,
             )
 
-        # elif request.action == "create_client_name":
-        #     if not request.name:
-        #         raise HTTPException(status_code=400, detail="Name is required for create action")
-        #     return admin_service.client_name(
-        #         config_type=request.config_type,
-        #         select_client=request.name,
-        #         db=db,
-        #     )
-
         elif request.action == "update_colour":
             if not request.id:
                 raise HTTPException(
@@ -722,14 +691,15 @@ def get_master_names(db: Session = Depends(get_db)):
     colour_list = db.query(Colour).all()
     product_type_list = db.query(ProductType).all()
     storage_location_list = db.query(StorageLocation).all()
+    party_list = db.query(Party).all()     
 
     return {
         "qualities": [{"id": q.id, "name": q.name} for q in quality_list],
         "colours": [{"id": c.id, "name": c.name} for c in colour_list],
         "product_types": [{"id": p.id, "name": p.name} for p in product_type_list],
         "storage_locations": [
-            {"id": s.id, "name": s.name} for s in storage_location_list
-        ],
+            {"id": s.id, "name": s.name} for s in storage_location_list],
+        "parties": [{"id": p.id, "name": p.name} for p in party_list],
     }
 
 
@@ -957,15 +927,18 @@ def get_all_inventory_records(
                 StickerGenerator.gsm.label("gsm"),
                 Colour.name.label("color"),
                 Quality.name.label("quality"),
+                Party.name.label("party"),
                 StickerGenerator.is_sold.label("is_sold"),
                 StickerGenerator.quality_id.label("quality_id"),
                 StickerGenerator.colour_id.label("colour_id"),
                 StickerGenerator.product_type_id.label("product_type_id"),
+                StickerGenerator.party_id.label("party_id"), 
                 StickerGenerator.leminated.label("leminated"),
             )
             .join(ProductType, StickerGenerator.product_type_id == ProductType.id)
             .join(Colour, StickerGenerator.colour_id == Colour.id)
             .join(Quality, StickerGenerator.quality_id == Quality.id)
+            .outerjoin(Party, StickerGenerator.party_id == Party.id)
         )
         
         # Apply product_number filter if provided
@@ -994,6 +967,8 @@ def get_all_inventory_records(
                     gsm=record.gsm,
                     color=record.color.capitalize(),
                     quality_id=record.quality_id,
+                    party=record.party.capitalize() if record.party else None,
+                    party_id=record.party_id,  
                     colour_id=record.colour_id,
                     product_type_id=record.product_type_id,
                     quality=record.quality.capitalize(),
@@ -1015,77 +990,6 @@ def get_all_inventory_records(
             status_code=500, detail=f"Error fetching inventory records: {str(e)}"
         )
     
-# Without pagination :
-
-# @router.get("/inventory/records", response_model=List[InventoryRecordResponse])
-# def get_all_inventory_records(
-#     db: Session = Depends(get_db), current_user=Depends(get_current_user)
-# ):
-#     """
-#     Get all inventory records with only the fields shown in the inventory table:
-#     - Product Code (product_number)
-#     - Type (from product_type table)
-#     - Weight (net_weight)
-#     - Color (from colour table)
-#     - Quality (from quality table)
-#     """
-#     try:
-#         # Query with joins to get related data
-#         query = (
-#             select(
-#                 StickerGenerator.product_number.label("product_code"),
-#                 ProductType.name.label("type"),
-#                 StickerGenerator.net_weight.label("net_weight"),
-#                 StickerGenerator.gross_weight.label("gross_weight"),
-#                 StickerGenerator.width.label("width"),
-#                 StickerGenerator.length.label("length"),
-#                 StickerGenerator.gsm.label("gsm"),
-#                 Colour.name.label("color"),
-#                 Quality.name.label("quality"),
-#                 StickerGenerator.is_sold.label("is_sold"),
-#                 StickerGenerator.quality_id.label("quality_id"),
-#                 StickerGenerator.colour_id.label("colour_id"),
-#                 StickerGenerator.product_type_id.label("product_type_id"),
-#                 StickerGenerator.leminated.label("leminated"),
-#             )
-#             .join(ProductType, StickerGenerator.product_type_id == ProductType.id)
-#             .join(Colour, StickerGenerator.colour_id == Colour.id)
-#             .join(Quality, StickerGenerator.quality_id == Quality.id)
-#             .order_by(StickerGenerator.product_number)
-#         )
-
-#         result = db.execute(query)
-#         records = result.fetchall()
-
-#         # Convert to response format
-#         inventory_records = []
-#         for record in records:
-#             inventory_records.append(
-#                 InventoryRecordResponse(
-#                     product_code=record.product_code,
-#                     type=record.type.capitalize(),
-#                     net_weight=record.net_weight,
-#                     gross_weight=record.gross_weight,
-#                     width=record.width,
-#                     length=record.length,
-#                     gsm=record.gsm,
-#                     color=record.color.capitalize(),
-#                     quality_id=record.quality_id,
-#                     colour_id=record.colour_id,
-#                     product_type_id=record.product_type_id,
-#                     quality=record.quality.capitalize(),
-#                     is_sold=record.is_sold,
-#                     leminated=record.leminated,
-#                 )
-#             )
-
-#         return inventory_records
-
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=500, detail=f"Error fetching inventory records: {str(e)}"
-#         )
-
 
 @router.get("/inventroy-data/{product_number}/qr-code", response_model=StickerResponse)
 def get_sticker_by_product_number(
@@ -1137,6 +1041,7 @@ def get_sticker_by_product_number(
                 ProductType.name.label("product_type"),
                 Quality.name.label("quality"),
                 Colour.name.label("colour"),
+                Party.name.label("party"), 
                 StickerGenerator.net_weight,
                 StickerGenerator.gross_weight,
                 StickerGenerator.length,
@@ -1146,6 +1051,7 @@ def get_sticker_by_product_number(
             .join(ProductType, StickerGenerator.product_type_id == ProductType.id)
             .join(Quality, StickerGenerator.quality_id == Quality.id)
             .join(Colour, StickerGenerator.colour_id == Colour.id)
+            .outerjoin(Party, StickerGenerator.party_id == Party.id)
             .filter(StickerGenerator.product_number == product_number)
             .first()
         )
@@ -1171,6 +1077,7 @@ def get_sticker_by_product_number(
                 product_type=result.product_type.capitalize(),
                 quality=result.quality.capitalize(),
                 colour=result.colour.capitalize(),
+                party=result.party.capitalize() if result.party else None,
                 net_weight=str(result.net_weight),
                 gross_weight=result.gross_weight,
                 length=result.length,
@@ -1194,6 +1101,7 @@ def get_sticker_by_product_number(
                 product_type=sp.product_type,
                 quality=sp.quality,
                 colour=sp.colour,
+                party=sp.party,
                 net_weight=sp.net_weight,
                 gross_weight=sp.gross_weight,
                 length=sp.length,
@@ -1231,6 +1139,7 @@ def get_all_scanned_products(
                 product_type=sp.product_type,
                 quality=sp.quality,
                 colour=sp.colour,
+                party=sp.party,
                 net_weight=sp.net_weight,
                 gross_weight=sp.gross_weight,
                 length=sp.length,
@@ -1319,7 +1228,8 @@ def parse_scanned_item(item_string: str) -> ScannedItemSchema:
         r"([\d.]+)gw\s*-\s*"  # gross_weight
         r"([\d.]+)l\s*-\s*"  # length
         r"([\d.]+)w\s*-\s*"  # width
-        r"(\d+)gsm"  # gsm
+        r"(\d+)gsm\s*-\s*"          # gsm
+        r"([^-]*)party"      # party 
     )
     match = re.match(pattern, item_string.strip())
 
@@ -1337,13 +1247,16 @@ def parse_scanned_item(item_string: str) -> ScannedItemSchema:
         length,
         width,
         gsm,
+        party,
     ) = match.groups()
+    party_value = party.strip()
 
     return ScannedItemSchema(
         product_number=product_number.strip(),
         quality=quality.strip(),
         colour=colour.strip(),
         product_type=product_type.strip(),
+        party=None if party_value.lower() == "null" else party_value,
         weight=float(weight),
         gross_weight=float(gross_weight),
         length=float(length),
@@ -1588,6 +1501,14 @@ def update_sticker(
                     status_code=404,
                     detail=f"Colour with ID {update_data.colour_id} not found",
                 )
+        
+        if update_data.party_id:
+            party = db.query(Party).filter(Party.id == update_data.party_id).first()
+            if not party:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Party with ID {update_data.party_id} not found",
+                )
 
         if update_data.quality_id:
             quality = (
@@ -1609,6 +1530,10 @@ def update_sticker(
         if update_data.colour_id is not None:
             sticker.colour_id = update_data.colour_id
             updated_fields.append("colour_id")
+
+        if update_data.party_id is not None:
+            sticker.party_id = update_data.party_id
+            updated_fields.append("party_id")
 
         if update_data.quality_id is not None:
             sticker.quality_id = update_data.quality_id
@@ -1651,6 +1576,7 @@ def update_sticker(
             "product_number": sticker.product_number,
             "product_type_id": sticker.product_type_id,
             "colour_id": sticker.colour_id,
+            "party_id": sticker.party_id,
             "quality_id": sticker.quality_id,
             "net_weight": float(sticker.net_weight),
             "gross_weight": float(sticker.gross_weight),

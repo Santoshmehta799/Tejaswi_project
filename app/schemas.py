@@ -35,6 +35,7 @@ class StickerGeneratorCreate(BaseModel):
     colour_id: int
     product_type_id: int
     storage_location_id: int
+    party_id: int
     shift: ShiftType
     trading_name: TradingName
     production_date: date
@@ -65,6 +66,7 @@ class StickerGeneratorResponse(StickerGeneratorCreate):
     quality: Optional[RelatedItem] = None
     product_type: Optional[RelatedItem] = None
     storage_location: Optional[RelatedItem] = None
+    party: Optional[RelatedItem] = None 
 
     class Config:
         orm_mode = True
@@ -80,9 +82,11 @@ class InventoryRecordResponse(BaseModel):
     gsm: Decimal
     color: str
     quality: str
+    party: Optional[str] = None
     colour_id: int
     quality_id: int
     product_type_id: int
+    party_id: Optional[int] = None
     is_sold: Optional[bool] = False
     leminated: Optional[bool] = False
 
@@ -115,10 +119,8 @@ class AdminConfigRequest(BaseModel):
         "create", "update", "delete", "get", "list", "create_colour", "update_colour"
     ]
     config_type: Literal[
-        "quality", "colour", "product_type", "storage_location", "all"
-    ]  # Added "all"
-    # action: Literal["create", "update", "delete", "get", "list","create_colour", "update_colour", "create_client_name"]
-    # config_type: Literal["quality", "colour", "product_type", "storage_location", "all", "clinet_name"]  # Added "all"
+        "quality", "colour", "product_type", "storage_location", "party", "all"
+    ] 
     name: Optional[str] = None
     item_id: Optional[int] = None
     id: Optional[int] = None
@@ -145,6 +147,7 @@ class ProductDetailsResponse(BaseModel):
     product_type: str
     quality: str
     colour: str
+    party: Optional[str] = None 
     net_weight: Optional[Decimal]
     gross_weight: Optional[Decimal]
     length: Optional[Decimal]
@@ -159,6 +162,7 @@ class ScannedItemSchema(BaseModel):
     product_number: str
     quality: str
     colour: str
+    party: Optional[str] = None 
     product_type: str
     weight: float
     gross_weight: float
@@ -224,6 +228,7 @@ class StickerUpdateRequest(BaseModel):
     product_type_id: Optional[int] = None
     colour_id: Optional[int] = None
     quality_id: Optional[int] = None
+    party_id: Optional[int] = None
     net_weight: Optional[float] = None
     gross_weight: Optional[float] = None
     length: Optional[float] = None
@@ -239,6 +244,7 @@ class StickerUpdateResponse(BaseModel):
     product_type_id: int
     colour_id: int
     quality_id: int
+    party_id: Optional[int] = None
     net_weight: float
     gross_weight: float
     length: float
@@ -262,6 +268,11 @@ class ColourResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class PartyResponse(BaseModel):
+    name: str
+
+    class Config:
+        from_attributes = True
 
 class QualityResponse(BaseModel):
     # id: int
@@ -278,11 +289,16 @@ class ProductTypeResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class PartyResponseSimple(BaseModel):
+    name: Optional[str]
+    class Config:
+        from_attributes = True
 
 class StickerResponse(BaseModel):
     colour: Optional[ColourResponse]
     quality: Optional[QualityResponse]
     product_type: Optional[ProductTypeResponse]
+    party: Optional[PartyResponseSimple]  
     serial_number: Optional[str]
     product_number:Optional[str]
     gsm: Optional[str]
