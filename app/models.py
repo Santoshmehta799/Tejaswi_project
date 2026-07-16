@@ -61,6 +61,12 @@ class Colour(Base):
     id = Column(Integer, primary_key=True, index=True)
     is_white = Column(Boolean, nullable=False)
 
+class Party(Base):
+    __tablename__ = "party"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+
 
 class ProductType(Base):
     __tablename__ = "product_type"
@@ -83,6 +89,7 @@ class StickerGenerator(Base):
     product_number = Column(String(50), unique=True, nullable=False, index=True)
     quality_id = Column(Integer, ForeignKey("quality.id"))
     colour_id = Column(Integer, ForeignKey("colour.id"))
+    party_id = Column(Integer, ForeignKey("party.id")) 
     product_type_id = Column(Integer, ForeignKey("product_type.id"))
     storage_location_id = Column(Integer, ForeignKey("storage_location.id"))
     trading_name = Column(String(20))
@@ -105,6 +112,7 @@ class StickerGenerator(Base):
     quality = relationship("Quality")
     product_type = relationship("ProductType")
     storage_location = relationship("StorageLocation")
+    party = relationship("Party")
 
     __table_args__ = (
         CheckConstraint(
@@ -124,6 +132,7 @@ class ScannedProduct(Base):
     product_type = Column(String)
     quality = Column(String)
     colour = Column(String)
+    party = Column(String)
     net_weight = Column(String)
     gross_weight = Column(DECIMAL(10, 2))
     gsm = Column(String(10))
