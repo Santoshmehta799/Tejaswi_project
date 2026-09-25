@@ -11,7 +11,7 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                sh 'docker build -t tejaswi-backend:latest .'
+                sh 'docker build -t santu-backend:latest .'
             }
         }
 
