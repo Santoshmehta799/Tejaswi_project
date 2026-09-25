@@ -14,5 +14,11 @@ pipeline {
                 sh 'docker build -t tejaswi-backend:latest .'
             }
         }
+
+        stage('Run Application') {
+            steps {
+                sh 'docker compose up -d'
+            }
+        }
     }
 }
