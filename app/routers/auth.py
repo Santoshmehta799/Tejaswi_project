@@ -97,7 +97,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
 @router.get("/testing-api/")
 def read_root():
-    return {"message": "Working api====>"}
+    return {"message": "Update this api Working api====>"}
 
 @router.post("/users/")
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
