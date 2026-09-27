@@ -99,6 +99,11 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 def read_root():
     return {"message": "============-----==>>AUTOMATICAALY CICD Update this api Working api====>"}
 
+@router.get("/testing/")
+def read_root():
+    return {"message": "new-api-tetsting------------------------>>>"}
+
+
 @router.post("/users/")
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.username == user.username).first()
