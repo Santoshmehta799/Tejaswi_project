@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: 641628981724.dkr.ecr.ap-south-1.amazonaws.com/santu-backend-project:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              value: postgresql://postgres:root@postgres-service:5432/tejaswi
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
